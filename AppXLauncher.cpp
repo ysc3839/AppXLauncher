@@ -40,8 +40,10 @@ auto ReadPackageConfig()
 	auto json = winrt::Windows::Data::Json::JsonObject::Parse(str);
 	auto packageFamilyName = json.GetNamedString(L"PackageFamilyName");
 	auto appId = json.GetNamedString(L"AppId");
+	auto persistent = json.GetNamedBoolean(L"Persistent", false);
+	auto killRunning = json.GetNamedBoolean(L"KillRunning", false);
 
-	return std::make_pair(packageFamilyName, appId);
+	return std::make_tuple(packageFamilyName, appId, persistent, killRunning);
 }
 
 auto ReadDllConfig()
@@ -92,18 +94,21 @@ int APIENTRY wWinMain([[maybe_unused]] _In_ HINSTANCE hInstance,
 {
 	g_exePath = GetModuleFsPath(nullptr);
 
-	const int argc = __argc;
+	const size_t argc = static_cast<size_t>(__argc);
 	if (argc < 5)
 	{
 		winrt::init_apartment();
 
-		auto [packageFamilyName, appId] = ReadPackageConfig();
+		auto [packageFamilyName, appId, persistent, killRunning] = ReadPackageConfig();
 
 		auto package = FindFirstPackage(packageFamilyName);
 		auto packageFullName = package.Id().FullName();
 
 		auto debugSettings = wil::CoCreateInstance<IPackageDebugSettings>(CLSID_PackageDebugSettings);
-		debugSettings->TerminateAllProcesses(packageFullName.c_str());
+
+		if (killRunning)
+			debugSettings->TerminateAllProcesses(packageFullName.c_str());
+
 		debugSettings->DisableDebugging(packageFullName.c_str());
 		debugSettings->EnableDebugging(packageFullName.c_str(), g_exePath.c_str(), nullptr);
 
@@ -114,13 +119,14 @@ int APIENTRY wWinMain([[maybe_unused]] _In_ HINSTANCE hInstance,
 		appUserModelId += appId;
 		ActivateApplication(appUserModelId.c_str());
 
-		debugSettings->DisableDebugging(packageFullName.c_str());
+		if (!persistent)
+			debugSettings->DisableDebugging(packageFullName.c_str());
 	}
 	else
 	{
 		DWORD pid = 0, tid = 0;
 		wchar_t** argv = __wargv;
-		for (int i = 1; i < argc - 1; ++i)
+		for (size_t i = 1; i < argc - 1; ++i)
 		{
 			std::wstring_view arg = argv[i];
 			if (arg == L"-p") // Process ID
