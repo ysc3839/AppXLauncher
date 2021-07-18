@@ -1,0 +1,38 @@
+name: Push Build
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v1
+    - uses: nuget/setup-nuget@v1
+      with:
+        nuget-version: latest
+    - run: nuget restore AppXLauncher.sln
+    - run: |
+        Start-Job -Init ([ScriptBlock]::Create("Set-Location '$pwd'")) -Script {
+          msbuild AppXLauncher.sln "-p:Configuration=Release;Platform=x64" }
+        Start-Job -Init ([ScriptBlock]::Create("Set-Location '$pwd'")) -Script {
+          msbuild AppXLauncher.sln "-p:Configuration=Release;Platform=x86" }
+        Get-Job | Wait-Job | Receive-Job
+      shell: powershell
+    - uses: actions/upload-artifact@v2
+      with:
+        name: AppXLauncher64.exe
+        path: x64/Release/AppXLauncher64.exe
+    - uses: actions/upload-artifact@v2
+      with:
+        name: AppXLauncher64.pdb
+        path: x64/Release/AppXLauncher64.pdb
+    - uses: actions/upload-artifact@v2
+      with:
+        name: AppXLauncher32.exe
+        path: Release/AppXLauncher32.exe
+    - uses: actions/upload-artifact@v2
+      with:
+        name: AppXLauncher32.pdb
+        path: Release/AppXLauncher32.pdb
