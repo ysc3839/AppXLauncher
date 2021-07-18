@@ -1,5 +1,7 @@
 {
 	"PackageFamilyName": "Microsoft.WindowsCalculator_8wekyb3d8bbwe",
 	"AppId": "App",
-	"InjectDll": "test.dll"
+	"InjectDll": "test.dll",
+	"Persistent": false,
+	"KillRunning": false
 }
